@@ -1,12 +1,24 @@
-class Data
-  # contains a data instance from training set
+def median(ary)
+  # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
+  mid = ary.length / 2
+  sorted = ary.sort
+  ary.length.odd? ? sorted[mid] : 0.5 * (sorted[mid] + sorted[mid - 1])
+end
+
+class Datum
+  # contains one data instance from training set
   attr_accessor :vals
 
-  def initialize(attrs, vals)
+  def initialize(attrs, vals, out)
     @vals = Hash.new(nil)
     attrs.each_with_index do |d, ind|
       @vals[d] = vals[ind] unless vals[ind] == '?'
     end
+    @vals['output'] = out
+  end
+
+  def output
+    @vals['output']
   end
 end
 
@@ -31,10 +43,11 @@ class Node
   def test(data, nom_choices)
     if @nominal
       @children.each_with_index do |child, ind|
+        # TODO: this doesn't work:
         child.test(data, nom_choices) if data[@att] == nom_choices[@att][ind]
       end
     else
-      if data[@att] > @thresh
+      if data[@att] > @thresh # > on one side, <= on oter
         @children.first.test(data)
       else
         @children[1].test(data, nom_choices)
@@ -59,24 +72,59 @@ class Leaf < Node
   end
 end
 
-def buildTree(csv, attributes, nominal)
+def buildTree(csv, atts, nominal)
   # attributes = [attribute-names]
   # nominal = {k = attribute-name, val = t or f}
+
 
   # for keeping track of num splits on non-nominal attributes
   numSplits = Hash.new(0)
 
+end
 
-  # while training not perfectly classified
+def recursiveBuild(datas, atts_left, numSplits, nominals)
+  # return Leaf if no splits left
+  all_the_same = datas.map(&:output).all?(datas.first.output)
+  # return Leaf if all_the_same
 
-  # pick best attribute
+  best_entr = 0
+  best_thresh = nil
+  best_att = nil
+  examples = datas.count
 
-  # split it (create new node)
+  atts_left.each do |a|
+    if not nominals[a]
+      # attribute is nominal
+      outcomes_count = Hash.new(0)
+      datas.each do |d|
+        outcomes_count[d.vals[a]]+=1
+      end
 
+      entropy = 0
+      outcomes_count.each do |k, v|
+        entropy += -(v/examples)*Math.log2(v/examples)
+      end
 
+    else 
+      # attribute is continuous
+      median = median(datas.map(&:output))
+      entropy = -Math.log2(.5)
+    end
 
+    if entropy >= best_entr
+      best_entr = entropy
+      best_att = a
+      best_thresh = median if median
+    end
+  end
 
+  if not nominals[best_att]
+    n = Node.new(best_att, best_thresh)
+  else
+    n = Node.new(best_att)
+  end
 
+  # split datas and recurse to add children
 
-  # end
+  return n
 end
