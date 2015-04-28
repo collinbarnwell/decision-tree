@@ -1,3 +1,5 @@
+SPLIT_MAX = 4
+
 def median(ary)
   # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
   mid = ary.length / 2
@@ -32,12 +34,12 @@ class Node
       @thresh = thresh
     else
       @nominal = true
-    end   
+    end
     @att = att
   end
 
-  def addChildren()
-
+  def addChildren(kids)
+    @children = kids
   end
 
   def test(data, nom_choices)
@@ -83,6 +85,8 @@ def buildTree(csv, atts, nominal)
 end
 
 def recursiveBuild(datas, atts_left, numSplits, nominals)
+  # nominals = {att => [c1, c2, c3], att => nil, att => [c1, c2], att => nil}
+
   # return Leaf if no splits left
   all_the_same = datas.map(&:output).all?(datas.first.output)
   # return Leaf if all_the_same
@@ -119,12 +123,29 @@ def recursiveBuild(datas, atts_left, numSplits, nominals)
   end
 
   if not nominals[best_att]
+    atts_left = atts_left - [best_att] if (numSplits[best_att] +=1) >= SPLIT_MAX
     n = Node.new(best_att, best_thresh)
   else
+    atts_left = atts_left - [best_att]
     n = Node.new(best_att)
   end
 
   # split datas and recurse to add children
+  # kids array goes lowest to igest, left to rigt in nomCoices
+  kids = []
+  if nominals[best_att]
+    nominals[best_att].each do |possible_val|
+      datac = datas.select { |d| d[best_att] == possible_val }
+      kids << recursiveBuild(datac, atts_left, numSplits, nominals)
+    end
+  else
+    datac1 = datas.select { |d| d[best_att] < best_thresh }
+    datac2 = datas.select { |d| d[best_att] >= best_thresh }
+    kids = [recursiveBuild(datac1, atts_left, numSplits, nominals),
+            recursiveBuild(datac2, atts_left, numSplits, nominals)]
+  end
+
+  n.addChildren(kids)
 
   return n
 end
