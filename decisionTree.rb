@@ -4,7 +4,7 @@ require 'csv'
 # TODO: deal w/ nil attribute testing
 
 SPLIT_MAX = 4
-MAX_ITERATIONS = 20000
+MAX_ITERATIONS = 40000
 
 def median(ary)
   # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
@@ -116,11 +116,14 @@ class TreeBuilder
       expected = row.last.to_i
       d = Datum.new(row)
       actual = tree.test(d)
+      
       if expected == actual
         correct+=1
       else
         wrong+=1
       end
+
+      break if iteration >= MAX_ITERATIONS
     end
 
     puts "Correct: #{correct}, Wrong: #{wrong} => \
