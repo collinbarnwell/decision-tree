@@ -1,10 +1,7 @@
 require 'csv'
-# require 'pry'
-
-# TODO: deal w/ nil attribute testing
 
 SPLIT_MAX = 4
-MAX_ITERATIONS = 40000
+MAX_ITERATIONS = 10000
 
 def median(ary)
   # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
@@ -116,7 +113,7 @@ class TreeBuilder
       expected = row.last.to_i
       d = Datum.new(row)
       actual = tree.test(d)
-      
+
       if expected == actual
         correct+=1
       else
@@ -151,14 +148,10 @@ class TreeBuilder
         @@keys.each_with_index do |k, ind|
           if row[ind].nil?
             @@nom_choices[k] = nil
-            print '#,'
           else
             @@nom_choices[k] = []
-            print 'nom,'
           end
         end
-
-        puts
         next
       end
 
@@ -187,11 +180,11 @@ class TreeBuilder
     puts "Finished reading data."
 
     tree = recursiveBuild(datas, @@keys[0...-1], Hash.new(0))
-    tree.print(0)
+
+    tree.dnfprint("", 1)
 
     return tree
-  end
-  
+  end  
 end
 
 class Datum < TreeBuilder
@@ -246,20 +239,37 @@ class Node < TreeBuilder
   end
 
   def print(dots)
-    str = "."*dots + "ON #{@att}: "
+    str = "."*dots + "SPLIT ON #{@att}"
     if @nominal
-      str += "("
+      str += ": ("
       @@nom_choices[@att].each do |c|
         str+=c
         str+= "|"
       end
       puts str + ")"
     else
-      puts str + ",thresh: #{@thresh}"
+      puts str + ", thresh: #{@thresh}"
     end
 
     @children.each do |c|
       c.print(dots+1)
+    end
+  end
+
+  def dnfprint(pstring, for_o)
+    if @nominal
+      @children.each_with_index do |c, ind|
+        rule = "(#{@att} == #{@@nom_choices[@att][ind]})"
+        rulestring = "#{pstring} AND #{rule}"
+        c.dnfprint(rulestring, for_o)
+      end
+    else
+      rule = "(#{@att} < #{@thresh})"
+      rulestring = "#{pstring} AND #{rule}"
+      @children.first.dnfprint(rulestring, for_o)
+      rule = "(#{@att} >= #{@thresh})"
+      rulestring = "#{pstring} AND #{rule}"
+      @children[1].dnfprint(rulestring, for_o)
     end
   end
 end
@@ -275,6 +285,10 @@ class Leaf < Node
   end
 
   def print(dots)
-    puts "."*dots + "!OUT: #{@klass}"
+    puts "."*dots + "OUTPUT: #{@klass}"
+  end
+
+  def dnfprint(pstring, for_o)
+    puts "(#{pstring[4..-1]} ) OR\n\n" if @klass == for_o
   end
 end
