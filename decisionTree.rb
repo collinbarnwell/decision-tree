@@ -1,4 +1,3 @@
-
 require 'csv'
 # require 'pry'
 
@@ -17,9 +16,6 @@ end
 class TreeBuilder
   def self.recursiveBuild(datas, atts_left, numSplits)
     # nominals = {att => [c1, c2, c3], att => nil, att => [c1, c2], att => nil}
-
-    puts atts_left.inspect
-
     if atts_left.empty?
       # return Leaf if no splits left
       outcount = Hash.new(0)
@@ -29,6 +25,10 @@ class TreeBuilder
       end
 
       return Leaf.new(outcount.max_by{|k,v| v}.first)
+    end
+
+    if datas.empty?
+      return Leaf.new(@@output_choices.first)
     end
 
     if datas.map(&:output).all?{|obj| obj == datas.first.output }
@@ -56,9 +56,6 @@ class TreeBuilder
 
       else
         # attribute is continuous
-        # puts datas.select.map{ |d| d.vals[a] }.inspect
-        puts a
-        # puts @@nom_choices.inspect
         median = median( datas.select.map{ |d| d.vals[a] } )
         entropy = -Math.log2(0.5)
       end
@@ -69,6 +66,12 @@ class TreeBuilder
         best_thresh = median if median
       end
     end
+
+    if best_att.nil?
+      return Leaf.new(datas.first.output)
+    end
+
+
 
     if @@nom_choices[best_att]
       atts_left = atts_left - [best_att]
@@ -102,6 +105,7 @@ class TreeBuilder
     datas = []
     keys = []
     @@nom_choices = Hash.new(nil)
+    @@output_choices = []
 
     iteration = 0
     CSV.foreach(csvin) do |row|
@@ -142,6 +146,8 @@ class TreeBuilder
         end
       end
 
+      @@output_choices << row.last unless row.last == '?' or @@output_choices.include?(row.last)
+
       datas << Datum.new(keys, row)
       break if iteration >= MAX_ITERATIONS
     end
@@ -150,7 +156,10 @@ class TreeBuilder
 
     tree = recursiveBuild(datas, keys[0...-1], Hash.new(0))
     tree.print(0)
+    
+    return nil
   end
+  
 end
 
 class Datum < TreeBuilder
@@ -219,7 +228,7 @@ class Node < TreeBuilder
     end
 
     @children.each do |c|
-      c.print(dots+1, @@nom_choices)
+      c.print(dots+1)
     end
   end
 end
@@ -238,4 +247,3 @@ class Leaf < Node
     puts "."*dots + "!OUT: #{@klass}"
   end
 end
-
