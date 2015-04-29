@@ -4,7 +4,7 @@ require 'csv'
 # TODO: deal w/ nil attribute testing
 
 SPLIT_MAX = 4
-MAX_ITERATIONS = 1000
+MAX_ITERATIONS = 20000
 
 def median(ary)
   # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
@@ -16,6 +16,11 @@ end
 class TreeBuilder
   def self.recursiveBuild(datas, atts_left, numSplits)
     # nominals = {att => [c1, c2, c3], att => nil, att => [c1, c2], att => nil}
+
+    if datas.empty?
+      return Leaf.new(@@output_choices.first)
+    end
+
     if atts_left.empty?
       # return Leaf if no splits left
       outcount = Hash.new(0)
@@ -25,10 +30,6 @@ class TreeBuilder
       end
 
       return Leaf.new(outcount.max_by{|k,v| v}.first)
-    end
-
-    if datas.empty?
-      return Leaf.new(@@output_choices.first)
     end
 
     if datas.map(&:output).all?{|obj| obj == datas.first.output }
@@ -101,9 +102,35 @@ class TreeBuilder
     return n
   end
 
+  def self.buildAndTest(csvin, csvtest)
+    tree = buildTree(csvin)
+
+    correct = 0
+    wrong = 0
+    iteration = 0
+
+    CSV.foreach(csvtest) do |row|
+      iteration+=1
+      next if iteration == 1 or iteration == 2
+
+      expected = row.last.to_i
+      d = Datum.new(row)
+      actual = tree.test(d)
+      if expected == actual
+        correct+=1
+      else
+        wrong+=1
+      end
+    end
+
+    puts "Correct: #{correct}, Wrong: #{wrong} => \
+    #{100*correct.to_f/(correct+wrong).to_f}%"
+    nil
+  end
+
   def self.buildTree(csvin)
     datas = []
-    keys = []
+    @@keys = []
     @@nom_choices = Hash.new(nil)
     @@output_choices = []
 
@@ -112,13 +139,13 @@ class TreeBuilder
       iteration+=1
       if iteration == 1
         # take keys
-        keys = row.map{ |k| k.gsub(' ','') }
+        @@keys = row.map{ |k| k.gsub(' ','') }
 
         next
       elsif iteration == 2
         # set nominal stuff
         puts row.inspect
-        keys.each_with_index do |k, ind|
+        @@keys.each_with_index do |k, ind|
           if row[ind].nil?
             @@nom_choices[k] = nil
             print '#,'
@@ -132,7 +159,7 @@ class TreeBuilder
         next
       end
 
-      keys[0...-1].each_with_index do |a, i|
+      @@keys[0...-1].each_with_index do |a, i|
         if @@nom_choices[a].nil?
           if row[i] == '?'
             row[i] = 0.0 
@@ -146,18 +173,20 @@ class TreeBuilder
         end
       end
 
-      @@output_choices << row.last unless row.last == '?' or @@output_choices.include?(row.last)
+      unless row.last == '?' or @@output_choices.include?(row.last)
+        @@output_choices << row.last 
+      end
 
-      datas << Datum.new(keys, row)
+      datas << Datum.new(row)
       break if iteration >= MAX_ITERATIONS
     end
 
     puts "Finished reading data."
 
-    tree = recursiveBuild(datas, keys[0...-1], Hash.new(0))
+    tree = recursiveBuild(datas, @@keys[0...-1], Hash.new(0))
     tree.print(0)
-    
-    return nil
+
+    return tree
   end
   
 end
@@ -167,14 +196,14 @@ class Datum < TreeBuilder
   attr_accessor :vals
   attr_reader :output
 
-  def initialize(attrs, vals)
+  def initialize(vals)
     @vals = Hash.new(nil)
     # if vals.last == '?'
     #   @output = -1
     # else
     @output = vals.last.to_i
     # end
-    attrs[0...-1].each_with_index do |a, ind|
+    @@keys[0...-1].each_with_index do |a, ind|
       @vals[a] = vals[ind]
     end
   end
@@ -202,14 +231,13 @@ class Node < TreeBuilder
   def test(data)
     if @nominal
       @children.each_with_index do |child, ind|
-        # TODO: this doesn't work:
-        child.test(data, @@nom_choices) if data[@att] == @@nom_choices[@att][ind]
+        child.test(data) if data.vals[@att] == @@nom_choices[@att][ind]
       end
-    else
-      if data[@att] < @thresh # > on one side, <= on oter
+    else # continuous
+      if data.vals[@att].to_f < @thresh # > on one side, <= on oter
         @children.first.test(data)
       else
-        @children[1].test(data, nom_choices)
+        @children[1].test(data)
       end
     end
   end
@@ -239,7 +267,7 @@ class Leaf < Node
     @klass = klassification
   end
 
-  def test(data, nom_choices)
+  def test(data)
     @klass
   end
 
