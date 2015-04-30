@@ -101,29 +101,48 @@ class TreeBuilder
   def self.buildAndTest(csvin, csvtest)
     tree = buildTree(csvin)
 
-    correct = 0
-    wrong = 0
+    # get data
+    datas = []
     iteration = 0
-
     CSV.foreach(csvtest) do |row|
       iteration+=1
       next if iteration == 1 or iteration == 2
+      datas << Datum.new(row)
+      break if iteration >= MAX_ITERATIONS
+    end
 
-      expected = row.last.to_i
-      d = Datum.new(row)
+    # test original tree
+    correct = 0
+    wrong = 0
+    datas.each do |d|
       actual = tree.test(d)
-
-      if expected == actual
+      if d.output == actual
         correct+=1
       else
         wrong+=1
       end
-
-      break if iteration >= MAX_ITERATIONS
     end
-
+    puts "ORIGINAL TREE: "
     puts "Correct: #{correct}, Wrong: #{wrong} => \
     #{100*correct.to_f/(correct+wrong).to_f}%"
+
+    # pruned tree
+    tree.prune(@@datas)
+    
+    correct = 0
+    wrong = 0
+    datas.each do |d|
+      actual = tree.test(d)
+      if d.output == actual
+        correct+=1
+      else
+        wrong+=1
+      end
+    end
+    puts "PRUNED TREE: "
+    puts "Correct: #{correct}, Wrong: #{wrong} => \
+    #{100*correct.to_f/(correct+wrong).to_f}%"
+
     nil
   end
 
@@ -176,12 +195,14 @@ class TreeBuilder
       break if iteration >= MAX_ITERATIONS
     end
 
+    @@datas = datas
+
     puts "Finished reading data."
 
     tree = recursiveBuild(datas, @@keys[0...-1], Hash.new(0))
 
     @@leaves_printed = 0
-    tree.dnfprint("", 1)
+    # tree.dnfprint("", 1)
 
     return tree
   end  
@@ -274,7 +295,7 @@ class Node < TreeBuilder
   end
 
   def prune(datas)
-    if children.first.isLeaf # means all children are leaves
+    if @children.first.isLeaf # means all children are leaves
       # replace self with leaf that correctly classifies majority
       output_counts = Hash.new(0)
 
@@ -283,8 +304,7 @@ class Node < TreeBuilder
       end
 
       if datas.empty?
-        # shouldn't happen
-        throw "Datas should not be empty at this step"
+        # throw "Datas should not be empty at this step"
         return Leaf.new(@@output_choices.first)
       end
 
@@ -296,15 +316,19 @@ class Node < TreeBuilder
       @children.each_with_index do |child, ind|
         new_data = datas.select {|d| d.vals[@att] == @@nom_choices[@att][ind] }
         cprune = child.prune(new_data)
-        children[ind] = cprune if cprune
+        @children[ind] = cprune if cprune
       end
     else
       # continuous
-      new_data = datas.select {|d| d.vals[@att] < @thresh }
+      new_data = datas.select do |d|
+        d.vals[@att].is_a?(String) or d.vals[@att] < @thresh
+      end
       cprune = @children.first.prune(new_data)
       @children[0] = cprune if cprune
 
-      new_data = datas.select {|d| d.vals[@att] >= @thresh }
+      new_data = datas.select do 
+        |d| !(d.vals[@att].is_a?(String)) and d.vals[@att] >= @thresh
+      end
       cprune = @children[1].prune(new_data)
       @children[1] = cprune if cprune
     end
@@ -312,7 +336,7 @@ class Node < TreeBuilder
     return nil
   end
 
-  def isLeaf
+  def isLeaf()
     false
   end
 end
@@ -339,11 +363,11 @@ class Leaf < Node
     end
   end
 
-  def prune
-    throw 'Prune should never be called on a leaf'
+  def prune(datas)
+    return self
   end
 
-  def isLeaf
+  def isLeaf()
     true
   end
 end
