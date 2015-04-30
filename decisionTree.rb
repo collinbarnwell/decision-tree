@@ -1,7 +1,8 @@
 require 'csv'
 
-SPLIT_MAX = 4
+SPLIT_MAX = 1
 MAX_ITERATIONS = 10000
+RESTRICT_PRINT_TO_16 = true
 
 def median(ary)
   # from http://stackoverflow.com/questions/21487250/find-the-median-of-an-array
@@ -68,8 +69,6 @@ class TreeBuilder
     if best_att.nil?
       return Leaf.new(datas.first.output)
     end
-
-
 
     if @@nom_choices[best_att]
       atts_left = atts_left - [best_att]
@@ -181,6 +180,7 @@ class TreeBuilder
 
     tree = recursiveBuild(datas, @@keys[0...-1], Hash.new(0))
 
+    @@leaves_printed = 0
     tree.dnfprint("", 1)
 
     return tree
@@ -272,6 +272,49 @@ class Node < TreeBuilder
       @children[1].dnfprint(rulestring, for_o)
     end
   end
+
+  def prune(datas)
+    if children.first.isLeaf # means all children are leaves
+      # replace self with leaf that correctly classifies majority
+      output_counts = Hash.new(0)
+
+      datas.each do |d|
+        output_counts[d.output]+=1
+      end
+
+      if datas.empty?
+        # shouldn't happen
+        throw "Datas should not be empty at this step"
+        return Leaf.new(@@output_choices.first)
+      end
+
+      return Leaf.new(output_counts.max_by{|k, v| v}.first)
+    end
+
+    # one deeper
+    if @nominal
+      @children.each_with_index do |child, ind|
+        new_data = datas.select {|d| d.vals[@att] == @@nom_choices[@att][ind] }
+        cprune = child.prune(new_data)
+        children[ind] = cprune if cprune
+      end
+    else
+      # continuous
+      new_data = datas.select {|d| d.vals[@att] < @thresh }
+      cprune = @children.first.prune(new_data)
+      @children[0] = cprune if cprune
+
+      new_data = datas.select {|d| d.vals[@att] >= @thresh }
+      cprune = @children[1].prune(new_data)
+      @children[1] = cprune if cprune
+    end
+
+    return nil
+  end
+
+  def isLeaf
+    false
+  end
 end
 
 class Leaf < Node
@@ -289,6 +332,18 @@ class Leaf < Node
   end
 
   def dnfprint(pstring, for_o)
-    puts "(#{pstring[4..-1]} ) OR\n\n" if @klass == for_o
+    return if RESTRICT_PRINT_TO_16 && (@@leaves_printed > 16)
+    if @klass == for_o
+      puts "(#{pstring[4..-1]} ) OR\n\n" 
+      @@leaves_printed+=1
+    end
+  end
+
+  def prune
+    throw 'Prune should never be called on a leaf'
+  end
+
+  def isLeaf
+    true
   end
 end
