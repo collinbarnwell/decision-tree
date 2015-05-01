@@ -1,0 +1,49 @@
+==================================
+README
+==================================
+
+
+==================================
+CSV Files
+==================================
+
+I added a second line to the csv files to indicate which attributes were nominal(1) and which aren't(left blank) for each column
+
+Example Line 1 and Line 2:
+
+winpercent, oppwinpercent, weather, temperature, numinjured, oppnuminjured, startingpitcher, oppstartingpitcher, dayssincegame, oppdayssincegame, homeaway, rundifferential, opprundifferential, winner
+,,1,,,,1,1,,,1,,,
+
+==================================
+RUNNING THE CODE:
+==================================
+
+
+On any machine that has Ruby installed
+Go into the ruby console (irb) and load the file:
+
+>> load 'decisionTree.rb'
+
+--
+To build grow a tree w/ data from "btrain.csv", then test it against data 
+in "bvalidate.csv", run:
+
+>> TreeBuilder.buildAndTest("btrain.csv", "bvalidate.csv")
+
+This will print testing accuracy for both the pruned and unpruned versions 
+of the tree.
+
+--
+To print the tree in Disjunctive normal form, run the same thing w/ 
+one more arg set to true:
+
+
+>> TreeBuilder.buildAndTest("btrain.csv", "bvalidate.csv", true)
+--
+
+--
+To write predictions to a file (replacing question marks with prediction),
+run: TreeBuilder.predict(training-data, prune-data, test-data, output-filename)
+
+EX:
+>> TreeBuilder.predict('btrain.csv', 'bvalidate.csv', 'btest.csv', "PS2-Collin-Barnwell.csv")
